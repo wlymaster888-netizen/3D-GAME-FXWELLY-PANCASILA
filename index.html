@@ -1,0 +1,1061 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ninja Petualang Garuda: Kuis Kebangsaan 3D</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #030712;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        /* Custom scrollbar for educational popups */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ef4444;
+            border-radius: 3px;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 15px rgba(234, 179, 8, 0.8)); }
+            50% { filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.9)); }
+        }
+        .glow-trophy {
+            animation: pulse-glow 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-white overflow-hidden">
+
+    <div id="canvas-container"></div>
+
+    <div class="ui-layer flex flex-col justify-between p-4 md:p-6">
+        
+        <!-- Header HUD -->
+        <div class="flex justify-between items-start w-full max-w-5xl mx-auto">
+            <!-- Game Title & Stats -->
+            <div class="bg-gray-900/80 backdrop-blur-md border border-gray-800 p-3 md:p-4 rounded-2xl shadow-2xl interactive">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-red-600/50">
+                        🥷
+                    </div>
+                    <div>
+                        <h1 class="text-sm md:text-base font-bold text-red-500 tracking-wide uppercase">Ninja Garuda Quest</h1>
+                        <p class="text-xs text-gray-400">Petualangan & Kuis Kebangsaan 3D</p>
+                    </div>
+                </div>
+                <!-- Progress Bar -->
+                <div class="mt-3">
+                    <div class="flex justify-between text-xs font-semibold mb-1">
+                        <span class="text-gray-300">Soal Terjawab</span>
+                        <span id="score-text" class="text-yellow-400">0 / 20</span>
+                    </div>
+                    <div class="w-48 md:w-64 bg-gray-950 h-3 rounded-full overflow-hidden border border-gray-800 p-0.5">
+                        <div id="progress-bar" class="bg-gradient-to-r from-red-600 to-yellow-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs font-semibold mt-2 pt-1.5 border-t border-gray-800/80">
+                        <span class="text-gray-300 flex items-center gap-1"><i class="fa-solid fa-trophy text-amber-400"></i> Total Skor:</span>
+                        <span id="total-score" class="text-yellow-400 font-extrabold text-sm tracking-wider">0 PTS</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Controls Info -->
+            <div class="hidden sm:flex flex-col gap-1 text-right bg-gray-900/80 backdrop-blur-md border border-gray-800 p-3 rounded-2xl text-xs text-gray-300 interactive">
+                <div class="font-semibold text-yellow-400 mb-1"><i class="fa-solid fa-gamepad"></i> Kontrol Keyboard</div>
+                <div><span class="bg-gray-800 px-1.5 py-0.5 rounded text-white font-mono">W S / ▲ ▼</span> : Maju / Mundur</div>
+                <div><span class="bg-gray-800 px-1.5 py-0.5 rounded text-white font-mono">A D / ◄ ►</span> : Belok Kiri / Kanan</div>
+                <div><span class="bg-gray-800 px-1.5 py-0.5 rounded text-white font-mono">SPASI</span> : Melompat</div>
+            </div>
+        </div>
+
+        <!-- Radar / Direction Hint -->
+        <div id="radar-hint" class="self-center bg-gray-900/90 border border-yellow-500/40 text-yellow-300 px-4 py-2 rounded-full text-xs md:text-sm font-medium shadow-lg backdrop-blur-md flex items-center gap-2 transition-all duration-300">
+            <i class="fa-solid fa-compass animate-spin text-yellow-400"></i>
+            <span id="radar-text">Cari item bersinar terdekat untuk membuka kuis...</span>
+        </div>
+
+        <!-- Mobile Touch Controls -->
+        <div class="sm:hidden flex justify-between items-end w-full pb-2 interactive">
+            <!-- D-Pad -->
+            <div class="grid grid-cols-3 gap-2 w-36 h-36 bg-gray-900/60 p-2 rounded-3xl backdrop-blur-md border border-gray-800">
+                <div></div>
+                <button id="btn-up" class="bg-gray-800/80 active:bg-red-600 text-white rounded-xl flex items-center justify-center text-xl shadow"><i class="fa-solid fa-arrow-up"></i></button>
+                <div></div>
+                <button id="btn-left" class="bg-gray-800/80 active:bg-red-600 text-white rounded-xl flex items-center justify-center text-xl shadow"><i class="fa-solid fa-arrow-left"></i></button>
+                <div class="flex items-center justify-center text-xs text-gray-500">PAD</div>
+                <button id="btn-right" class="bg-gray-800/80 active:bg-red-600 text-white rounded-xl flex items-center justify-center text-xl shadow"><i class="fa-solid fa-arrow-right"></i></button>
+                <div></div>
+                <button id="btn-down" class="bg-gray-800/80 active:bg-red-600 text-white rounded-xl flex items-center justify-center text-xl shadow"><i class="fa-solid fa-arrow-down"></i></button>
+                <div></div>
+            </div>
+            <!-- Jump Button -->
+            <button id="btn-jump" class="w-20 h-20 bg-red-600 active:bg-red-700 text-white font-bold rounded-full shadow-lg shadow-red-600/50 flex flex-col items-center justify-center border-2 border-red-400">
+                <i class="fa-solid fa-angles-up text-xl"></i>
+                <span class="text-[10px]">LOMPAT</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Start Screen Modal -->
+    <div id="start-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 interactive">
+        <div class="bg-gray-900 border border-red-600/40 max-w-lg w-full rounded-3xl p-6 md:p-8 text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-red-600/20 rounded-full blur-3xl"></div>
+            <div class="text-5xl mb-3">🥷🇮🇩</div>
+            <h2 class="text-2xl md:text-3xl font-extrabold text-white tracking-wide">NINJA KUIS GARUDA</h2>
+            <p class="text-red-400 font-semibold text-sm mt-1">Misi Tantangan Kebangsaan Indonesia</p>
+            
+            <div class="my-6 bg-gray-950/80 rounded-2xl p-4 text-left text-xs md:text-sm text-gray-300 space-y-2 border border-gray-800">
+                <p class="font-semibold text-yellow-400">📜 Aturan Misi Kuis:</p>
+                <p>Jelajahi perbukitan 3D dan temukan <strong>20 Artefak Kuis Kebangsaan</strong>. Jawab pertanyaan kuis untuk mendapatkan skor dan klaim piala kehormatan:</p>
+                <ul class="list-disc pl-5 space-y-1 text-gray-400">
+                    <li>5 Soal Sila Pancasila (+5 PTS per soal)</li>
+                    <li>3 Soal Lambang, Bendera, & Lagu Kebangsaan (+5 PTS)</li>
+                    <li>8 Soal Presiden RI Pertama s/d Kedelapan (+5 PTS)</li>
+                    <li>4 Soal UUD 1945 Kebangsaan (+5 PTS)</li>
+                    <li>Dapatkan <strong>Piala Pahlawan Garuda 🏆</strong> setelah menyelesaikan 20 kuis (Skor Maksimal: 100 PTS)!</li>
+                </ul>
+            </div>
+
+            <button id="start-btn" class="w-full py-4 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold rounded-2xl shadow-xl shadow-red-600/30 text-lg transition-all duration-300 transform hover:scale-[1.02]">
+                MULAI PETUALANGAN <i class="fa-solid fa-play ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Quiz Modal -->
+    <div id="quiz-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 hidden interactive">
+        <div class="bg-gray-900 border-2 border-yellow-500/50 max-w-lg w-full rounded-3xl p-6 shadow-2xl relative transform transition-all">
+            <div class="flex items-center gap-4 border-b border-gray-800 pb-4">
+                <div id="quiz-icon" class="w-14 h-14 rounded-2xl bg-gradient-to-br from-yellow-500 to-red-600 flex items-center justify-center text-3xl shadow-lg">
+                    ⭐
+                </div>
+                <div>
+                    <span id="quiz-category" class="text-[10px] font-bold px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 uppercase tracking-wider">Tantangan Kuis</span>
+                    <h3 id="quiz-title" class="text-lg font-bold text-white mt-0.5">Judul Artefak</h3>
+                </div>
+            </div>
+            
+            <!-- Question Box -->
+            <div class="my-4">
+                <p id="quiz-question" class="text-sm font-semibold text-gray-100 bg-gray-950 p-4 rounded-2xl border border-gray-800 leading-relaxed">
+                    Pertanyaan kuis akan muncul di sini...
+                </p>
+            </div>
+
+            <!-- Answer Options -->
+            <div id="quiz-options" class="space-y-2 mb-4">
+                <!-- Option buttons dynamically generated -->
+            </div>
+
+            <!-- Rationale / Feedback Box -->
+            <div id="quiz-feedback" class="hidden p-3 rounded-xl text-xs font-medium border mb-4"></div>
+
+            <button id="close-quiz-btn" class="w-full py-3 bg-gradient-to-r from-yellow-500 to-red-600 text-white font-bold rounded-xl transition shadow-lg shadow-red-600/40 hidden">
+                Lanjut Berkelana <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Victory Screen Modal (Trophy Award) -->
+    <div id="victory-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 hidden interactive">
+        <div class="bg-gray-900 border-2 border-yellow-400 max-w-lg w-full rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden">
+            <!-- Background Glow -->
+            <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-64 h-64 bg-yellow-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="text-7xl mb-3 glow-trophy animate-bounce">🏆</div>
+            <span class="text-xs font-extrabold tracking-widest text-yellow-400 uppercase bg-yellow-500/20 px-3 py-1 rounded-full border border-yellow-500/40">PENGHARGAAN TERTINGGI</span>
+            <h2 class="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-500 to-red-500 mt-2">PIALA PAHLAWAN GARUDA NUSA</h2>
+            <p class="text-gray-300 mt-2 text-xs md:text-sm">Luar biasa! Anda telah berhasil menjawab seluruh <strong>20 Pertanyaan Kuis Kebangsaan</strong> dengan sempurna.</p>
+            
+            <div class="my-5 p-4 bg-gradient-to-r from-amber-500/20 to-red-500/20 rounded-2xl border border-yellow-400/40 text-center">
+                <span class="text-xs text-yellow-200 uppercase tracking-widest font-bold">Skor Akhir Kuis</span>
+                <div id="final-score" class="text-4xl font-black text-yellow-400 tracking-wider my-1">100 PTS</div>
+                <span class="text-[11px] text-green-400 font-semibold"><i class="fa-solid fa-circle-check"></i> 20 / 20 Kuis Selesai Dituntaskan</span>
+            </div>
+
+            <div class="my-4 p-4 bg-gray-950 rounded-2xl border border-yellow-500/30 text-yellow-300 text-xs leading-relaxed">
+                "Bangsa yang besar adalah bangsa yang menghormati jasa pahlawannya dan mengamalkan nilai-nilai luhur Pancasila."
+            </div>
+
+            <button id="restart-btn" class="w-full py-4 bg-gradient-to-r from-yellow-500 to-red-600 hover:from-yellow-400 hover:to-red-500 text-white font-bold rounded-2xl shadow-xl text-lg transition">
+                MAIN LAGI <i class="fa-solid fa-rotate-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game State & Collectibles Quiz Data (16 Quiz Questions)
+        const quizCollectiblesData = [
+            // 5 Pancasila Sila Questions
+            {
+                id: 1, type: 'pancasila', name: 'Sila 1: Bintang Gold', icon: '⭐', category: 'Pancasila', color: 0xf59e0b, geo: 'star',
+                question: 'Simbol Bintang Emas pada Garuda Pancasila melambangkan Sila Pertama. Apakah bunyi dari Sila Pertama Pancasila?',
+                options: ['Ketuhanan Yang Maha Esa', 'Kemanusiaan yang Adil dan Beradab', 'Persatuan Indonesia', 'Keadilan Sosial bagi Seluruh Rakyat Indonesia'],
+                correctIndex: 0,
+                desc: 'Bintang Emas melambangkan cahaya rohani dari Tuhan Yang Maha Esa bagi seluruh rakyat Indonesia.'
+            },
+            {
+                id: 2, type: 'pancasila', name: 'Sila 2: Rantai Emas', icon: '⛓️', category: 'Pancasila', color: 0xeab308, geo: 'torus',
+                question: 'Mata rantai berbentuk segi empat dan lingkaran pada simbol Sila Kedua melambangkan...',
+                options: ['Hubungan antara pria dan wanita yang saling bersatu', 'Keragaman pulau-pulau di Nusantara', 'Kekuatan militer dan pertahanan negara', 'Sektor ekonomi dan industri pertambangan'],
+                correctIndex: 0,
+                desc: 'Mata rantai segi empat melambangkan laki-laki dan lingkaran melambangkan perempuan yang saling membutuhkan dan bersatu.'
+            },
+            {
+                id: 3, type: 'pancasila', name: 'Sila 3: Pohon Beringin', icon: '🌳', category: 'Pancasila', color: 0x22c55e, geo: 'tree',
+                question: 'Pohon Beringin melambangkan Sila Ketiga "Persatuan Indonesia". Apakah makna dari akar tunggang yang menjulur?',
+                options: ['Keanekaragaman suku bangsa yang menyatu di bawah Indonesia', 'Perdagangan internasional antar negara', 'Sumber kekayaan kekayaan bahari', 'Perlindungan benteng pertahanan perang'],
+                correctIndex: 0,
+                desc: 'Akar tunggang yang menjulur ke mana-mana melambangkan keragaman suku bangsa dan budaya Indonesia yang tetap menyatu.'
+            },
+            {
+                id: 4, type: 'pancasila', name: 'Sila 4: Kepala Banteng', icon: '🐂', category: 'Pancasila', color: 0xef4444, geo: 'bull',
+                question: 'Mengapa Kepala Banteng dipilih sebagai simbol Sila Keempat Pancasila?',
+                options: ['Banteng adalah hewan sosial yang suka berkumpul untuk bermusyawarah', 'Banteng adalah hewan tercepat di pulau Jawa', 'Banteng melambangkan sektor peternakan nasional', 'Banteng adalah hewan langka yang dilindungi'],
+                correctIndex: 0,
+                desc: 'Banteng dikenal suka berkumpul, mencerminkan budaya rakyat Indonesia yang suka bermusyawarah untuk mengambil keputusan.'
+            },
+            {
+                id: 5, type: 'pancasila', name: 'Sila 5: Padi dan Kapas', icon: '🌾', category: 'Pancasila', color: 0x84cc16, geo: 'rice',
+                question: 'Sila Kelima dilambangkan dengan Padi dan Kapas. Dua simbol ini merepresentasikan kebutuhan dasar manusia, yaitu...',
+                options: ['Pangan dan Sandang', 'Pendidikan dan Kesehatan', 'Rumah dan Kendaraan', 'Listrik dan Air bersih'],
+                correctIndex: 0,
+                desc: 'Padi (pangan/makanan) dan Kapas (sandang/pakaian) adalah syarat utama tercapainya kemakmuran dan keadilan sosial.'
+            },
+
+            // 3 National Symbols Questions
+            {
+                id: 6, type: 'national', name: 'Burung Garuda Pancasila', icon: '🦅', category: 'Lambang Negara', color: 0xeab308, geo: 'garuda',
+                question: 'Pada kaki Burung Garuda terdapat pita bertuliskan motto kebangsaan. Apakah tulisan motto tersebut beserta artinya?',
+                options: ['Bhinneka Tunggal Ika: Berbeda-beda tetapi tetap satu jua', 'Tut Wuri Handayani: Di belakang memberi dorongan', 'Bersatu Kita Teguh: Kekuatan dalam persatuan', 'Gemah Ripah Loh Jinawi: Tenteram dan makmur'],
+                correctIndex: 0,
+                desc: 'Bhinneka Tunggal Ika berasal dari Kitab Sutasoma karya Mpu Tantular yang menegaskan persatuan di tengah keberagaman.'
+            },
+            {
+                id: 7, type: 'national', name: 'Bendera Merah Putih', icon: '🇲🇨', category: 'Simbol Negara', color: 0xdc2626, geo: 'flag',
+                question: 'Warna Bendera Sang Saka Merah Putih memiliki makna filosofis yang mendalam, yaitu...',
+                options: ['Merah berarti Keberanian, Putih berarti Kesucian', 'Merah berarti Kejayaan, Putih berarti Perdamaian', 'Merah berarti Tanah Air, Putih berarti Udara', 'Merah berarti Kekuatan, Putih berarti Kejujuran'],
+                correctIndex: 0,
+                desc: 'Merah melambangkan keberanian dan darah pejuang, sedangkan putih melambangkan kesucian jiwa bangsa Indonesia.'
+            },
+            {
+                id: 8, type: 'national', name: 'Lagu Indonesia Raya', icon: '🎵', category: 'Lagu Kebangsaan', color: 0x3b82f6, geo: 'music',
+                question: 'Siapakah Pahlawan Nasional yang menciptakan lagu kebangsaan "Indonesia Raya"?',
+                options: ['Wage Rudolf Supratman (W.R. Supratman)', 'Ismail Marzuki', 'Cornel Simanjuntak', 'Ibu Sud'],
+                correctIndex: 0,
+                desc: 'W.R. Supratman pertama kali memperdengarkan lagu Indonesia Raya dengan biola pada Kongres Pemuda II tanggal 28 Oktober 1928.'
+            },
+
+            // 8 Presidents of Indonesia Questions
+            {
+                id: 9, type: 'president', name: 'Ir. Soekarno', icon: '👤', category: 'Presiden Ke-1', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-1 yang memproklamasikan Kemerdekaan Indonesia pada 17 Agustus 1945 bersama Bung Hatta adalah...',
+                options: ['Ir. Soekarno', 'Soeharto', 'Sutan Sjahrir', 'Mohammad Natsir'],
+                correctIndex: 0,
+                desc: 'Ir. Soekarno adalah Proklamator Kemerdekaan sekaligus Presiden Pertama Republik Indonesia.'
+            },
+            {
+                id: 10, type: 'president', name: 'Soeharto', icon: '👤', category: 'Presiden Ke-2', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-2 yang dikenal dengan sebutan "Bapak Pembangunan Indonesia" adalah...',
+                options: ['Soeharto', 'B.J. Habibie', 'Umar Wirahadikusumah', 'Adam Malik'],
+                correctIndex: 0,
+                desc: 'Soeharto memimpin pembangunan berkesinambungan melalui program Rencana Pembangunan Lima Tahun (Repelita).'
+            },
+            {
+                id: 11, type: 'president', name: 'B.J. Habibie', icon: '👤', category: 'Presiden Ke-3', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-3 yang merupakan ahli aeronautika kelas dunia dan memproduksi pesawat buatan anak bangsa N-250 adalah...',
+                options: ['Prof. Dr. Ing. B.J. Habibie', 'Ir. Djuanda', 'Ki Hajar Dewantara', 'Sri Sultan Hamengkubuwono IX'],
+                correctIndex: 0,
+                desc: 'B.J. Habibie dikenal sebagai Bapak Teknologi Indonesia atas karya hebatnya di bidang industri dirgantara.'
+            },
+            {
+                id: 12, type: 'president', name: 'Abdurrahman Wahid (Gus Dur)', icon: '👤', category: 'Presiden Ke-4', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-4 yang dijuluki "Bapak Pluralisme Indonesia" karena sangat menghargai keberagaman budaya dan agama adalah...',
+                options: ['KH. Abdurrahman Wahid (Gus Dur)', 'Hamzah Haz', 'Amien Rais', 'Akbar Tandjung'],
+                correctIndex: 0,
+                desc: 'Gus Dur adalah tokoh humanis dan inklusif yang senantiasa memperjuangkan hak-hak minoritas dan kesetaraan.'
+            },
+            {
+                id: 13, type: 'president', name: 'Megawati Soekarnoputri', icon: '👤', category: 'Presiden Ke-5', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-5 yang mencatatkan sejarah sebagai Presiden Wanita Pertama Republik Indonesia adalah...',
+                options: ['Megawati Soekarnoputri', 'Fatmawati', 'R.A. Kartini', 'Khofifah Indar Parawansa'],
+                correctIndex: 0,
+                desc: 'Megawati Soekarnoputri memimpin Indonesia pada periode 2001–2004 dan melahirkan lembaga penting seperti KPK.'
+            },
+            {
+                id: 14, type: 'president', name: 'Susilo Bambang Yudhoyono (SBY)', icon: '👤', category: 'Presiden Ke-6', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-6 yang merupakan presiden pertama hasil Pemilihan Umum secara langsung oleh rakyat pada tahun 2004 adalah...',
+                options: ['Susilo Bambang Yudhoyono (SBY)', 'Jusuf Kalla', 'Boediono', 'Wiranto'],
+                correctIndex: 0,
+                desc: 'SBY memenangi Pemilu Presiden langsung pertama tahun 2004 dan memimpin selama dua periode (2004–2014).'
+            },
+            {
+                id: 15, type: 'president', name: 'Joko Widodo (Jokowi)', icon: '👤', category: 'Presiden Ke-7', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-7 (2014–2024) yang dikenal berfokus pada pembangunan infrastruktur merata di seluruh Indonesia adalah...',
+                options: ['Joko Widodo (Jokowi)', 'Ma\'ruf Amin', 'Basuki Hadimuljono', 'Luhut Binsar Pandjaitan'],
+                correctIndex: 0,
+                desc: 'Joko Widodo mendorong percepatan jalan tol, pelabuhan, bendungan, dan transformasi digital Nusantara.'
+            },
+            {
+                id: 16, type: 'president', name: 'Prabowo Subianto', icon: '👤', category: 'Presiden Ke-8', color: 0x6366f1, geo: 'pres',
+                question: 'Presiden RI Ke-8 yang dilantik pada tahun 2024 dengan fokus visi ketahanan pangan, energi, dan kemandirian bangsa adalah...',
+                options: ['H. Prabowo Subianto', 'Gibran Rakabuming Raka', 'Agus Harimurti Yudhoyono', 'Erick Thohir'],
+                correctIndex: 0,
+                desc: 'Prabowo Subianto memimpin Indonesia menuju Visi Indonesia Emas 2045 dengan prioritas ketahanan nasional.'
+            },
+
+            // 4 UUD 1945 Questions
+            {
+                id: 17, type: 'uud', name: 'UUD 1945 Pasal 1 Ayat 1', icon: '📜', category: 'UUD 1945', color: 0x06b6d4, geo: 'book',
+                question: 'Menurut UUD 1945 Pasal 1 Ayat 1, apakah bentuk negara dan pemerintahan Negara Indonesia?',
+                options: ['Negara Kesatuan, yang berbentuk Republik', 'Negara Serikat, yang berbentuk Monarki', 'Negara Federasi, yang berbentuk Republik', 'Negara Serikat, yang berbentuk Presidensial'],
+                correctIndex: 0,
+                desc: 'Pasal 1 Ayat 1 UUD 1945 menegaskan bahwa Negara Indonesia ialah Negara Kesatuan yang berbentuk Republik.'
+            },
+            {
+                id: 18, type: 'uud', name: 'UUD 1945 Pasal 1 Ayat 3', icon: '⚖️', category: 'UUD 1945', color: 0x8b5cf6, geo: 'scale',
+                question: 'Apakah penegasan utama dari Pasal 1 Ayat 3 UUD 1945 dalam penyelenggaraan negara?',
+                options: ['Negara Indonesia adalah negara hukum', 'Negara Indonesia berdasar atas kekuasaan belaka', 'Presiden memegang kekuasaan tertinggi militer', 'Kekuasaan negara berada penuh di tangan menteri'],
+                correctIndex: 0,
+                desc: 'Pasal 1 Ayat 3 UUD 1945 menegaskan bahwa "Negara Indonesia adalah negara hukum" (Rechtsstaat), bukan negara berdasarkan kekuasaan semata.'
+            },
+            {
+                id: 19, type: 'uud', name: 'UUD 1945 Pasal 29', icon: '🕌', category: 'UUD 1945', color: 0x10b981, geo: 'shield',
+                question: 'Apakah jaminan UUD 1945 Pasal 29 Ayat 1 dan 2 terkait keagamaan di Indonesia?',
+                options: ['Negara berdasar atas Ketuhanan Yang Maha Esa & menjamin kemerdekaan tiap penduduk beribadat', 'Negara mewajibkan satu agama resmi bagi seluruh warga', 'Pemerintah menentukan jadwal dan cara ibadah semua umat', 'Warga negara bebas untuk tidak meyakini nilai Ketuhanan'],
+                correctIndex: 0,
+                desc: 'Pasal 29 Ayat 1 & 2 UUD 1945 menjamin dasar Ketuhanan Yang Maha Esa serta kemerdekaan tiap-tiap penduduk untuk memeluk agama dan beribadat.'
+            },
+            {
+                id: 20, type: 'uud', name: 'UUD 1945 Pasal 30 Ayat 1', icon: '🛡️', category: 'UUD 1945', color: 0xef4444, geo: 'shield',
+                question: 'Menurut UUD 1945 Pasal 30 Ayat 1, siapakah yang berhak dan wajib ikut serta dalam usaha pertahanan dan keamanan negara?',
+                options: ['Tiap-tiap warga negara', 'Hanya anggota TNI dan POLRI', 'Seluruh aparatur sipil negara', 'Hanya warga negara laki-laki dewasa'],
+                correctIndex: 0,
+                desc: 'Pasal 30 Ayat 1 UUD 1945 menyatakan bahwa tiap-tiap warga negara berhak dan wajib ikut serta dalam usaha pertahanan dan keamanan negara.'
+            }
+        ];
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const now = audioCtx.currentTime;
+
+            if (type === 'jump') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'correct') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.08);
+                osc.frequency.setValueAtTime(783.99, now + 0.16);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } else if (type === 'wrong') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.setValueAtTime(160, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'thunder') {
+                const bufferSize = audioCtx.sampleRate * 0.4;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(300, now);
+                filter.frequency.linearRampToValueAtTime(80, now + 0.4);
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(now);
+            } else if (type === 'victory') {
+                // Fanfare melody
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+                    gain.gain.setValueAtTime(0.4, now + idx * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + idx * 0.12);
+                    osc.stop(now + idx * 0.12 + 0.4);
+                });
+            }
+        }
+
+        let scene, camera, renderer;
+        let player;
+        let ground, mountains = [], trees = [], rocks = [], birds = [], stars;
+        let collectibles = [];
+        let collectedCount = 0;
+        let totalScore = 0;
+        let activeQuizObj = null;
+        let lightningLight;
+
+        // Player movement state
+        const keys = { w: false, a: false, s: false, d: false, space: false };
+        let playerVelocityY = 0;
+        let isGrounded = true;
+        const gravity = -0.012;
+        const jumpStrength = 0.28;
+        const moveSpeed = 0.25;
+        const turnSpeed = 0.05;
+
+        let gameStarted = false;
+        let isQuizActive = false;
+
+        function initScene() {
+            // Scene Setup - Twilight Sky
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1e293b);
+            scene.fog = new THREE.FogExp2(0x1e293b, 0.005);
+
+            // Camera Setup
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x94a3b8, 0.95);
+            scene.add(ambientLight);
+
+            const moonLight = new THREE.DirectionalLight(0xf1f5f9, 1.2);
+            moonLight.position.set(50, 100, -50);
+            moonLight.castShadow = true;
+            moonLight.shadow.mapSize.width = 1024;
+            moonLight.shadow.mapSize.height = 1024;
+            scene.add(moonLight);
+
+            // Lightning Flash Point Light
+            lightningLight = new THREE.PointLight(0x38bdf8, 0, 300);
+            lightningLight.position.set(0, 80, 0);
+            scene.add(lightningLight);
+
+            createTerrain();
+            createMountains();
+            createTrees();
+            createRocks();
+            createBirds();
+            createStars();
+            createNinjaPlayer();
+            createCollectibles3D();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Terrain Generation
+        function createTerrain() {
+            const geo = new THREE.PlaneGeometry(300, 300, 64, 64);
+            geo.rotateX(-Math.PI / 2);
+
+            const pos = geo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const z = pos.getZ(i);
+                const y = Math.sin(x * 0.03) * Math.cos(z * 0.03) * 3 + Math.sin(x * 0.08) * 1.5;
+                pos.setY(i, y);
+            }
+            geo.computeVertexNormals();
+
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x0f172a,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            ground = new THREE.Mesh(geo, mat);
+            ground.receiveShadow = true;
+            scene.add(ground);
+        }
+
+        function createMountains() {
+            const mountainGeo = new THREE.ConeGeometry(25, 60, 5);
+            const mountainMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 1.0 });
+
+            for (let i = 0; i < 18; i++) {
+                const angle = (i / 18) * Math.PI * 2;
+                const dist = 120 + Math.random() * 20;
+                const m = new THREE.Mesh(mountainGeo, mountainMat);
+                m.position.set(Math.cos(angle) * dist, 25, Math.sin(angle) * dist);
+                m.scale.set(1 + Math.random() * 0.5, 1 + Math.random() * 0.8, 1 + Math.random() * 0.5);
+                scene.add(m);
+                mountains.push(m);
+            }
+        }
+
+        function createTrees() {
+            const trunkGeo = new THREE.CylinderGeometry(0.4, 0.6, 3, 6);
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3f2e18 });
+            const leavesGeo = new THREE.ConeGeometry(2.5, 6, 6);
+            const leavesMat = new THREE.MeshStandardMaterial({ color: 0x064e3b, roughness: 0.8 });
+
+            for (let i = 0; i < 70; i++) {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                trunk.position.y = 1.5;
+                trunk.castShadow = true;
+
+                const leaves = new THREE.Mesh(leavesGeo, leavesMat);
+                leaves.position.y = 5;
+                leaves.castShadow = true;
+
+                tree.add(trunk, leaves);
+
+                const x = (Math.random() - 0.5) * 220;
+                const z = (Math.random() - 0.5) * 220;
+                if (Math.abs(x) < 15 && Math.abs(z) < 15) continue;
+
+                tree.position.set(x, getTerrainHeight(x, z), z);
+                scene.add(tree);
+                trees.push(tree);
+            }
+        }
+
+        function createRocks() {
+            const rockGeo = new THREE.DodecahedronGeometry(1.5, 1);
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 });
+
+            for (let i = 0; i < 40; i++) {
+                const rock = new THREE.Mesh(rockGeo, rockMat);
+                const x = (Math.random() - 0.5) * 200;
+                const z = (Math.random() - 0.5) * 200;
+                const scale = 0.8 + Math.random() * 1.5;
+
+                rock.scale.set(scale, scale, scale);
+                rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                rock.position.set(x, getTerrainHeight(x, z) + scale * 0.5, z);
+                rock.castShadow = true;
+                scene.add(rock);
+                rocks.push(rock);
+            }
+        }
+
+        function createBirds() {
+            for (let i = 0; i < 8; i++) {
+                const birdGroup = new THREE.Group();
+                const wingMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, side: THREE.DoubleSide });
+                
+                const leftWing = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.5), wingMat);
+                leftWing.position.x = -0.6;
+                leftWing.rotation.z = 0.2;
+                
+                const rightWing = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.5), wingMat);
+                rightWing.position.x = 0.6;
+                rightWing.rotation.z = -0.2;
+
+                birdGroup.add(leftWing, rightWing);
+                birdGroup.position.set((Math.random() - 0.5) * 150, 25 + Math.random() * 15, (Math.random() - 0.5) * 150);
+                
+                scene.add(birdGroup);
+                birds.push({
+                    mesh: birdGroup,
+                    leftWing: leftWing,
+                    rightWing: rightWing,
+                    speed: 0.15 + Math.random() * 0.1,
+                    radius: 30 + Math.random() * 40,
+                    angle: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function createStars() {
+            const starsGeo = new THREE.BufferGeometry();
+            const count = 600;
+            const positions = new Float32Array(count * 3);
+
+            for (let i = 0; i < count * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 400;
+                positions[i + 1] = 40 + Math.random() * 100;
+                positions[i + 2] = (Math.random() - 0.5) * 400;
+            }
+
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const starsMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8 });
+            stars = new THREE.Points(starsGeo, starsMat);
+            scene.add(stars);
+        }
+
+        function getTerrainHeight(x, z) {
+            return Math.sin(x * 0.03) * Math.cos(z * 0.03) * 3 + Math.sin(x * 0.08) * 1.5;
+        }
+
+        function createNinjaPlayer() {
+            player = new THREE.Group();
+
+            const suitMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.5 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xfca5a5 });
+            const redMat = new THREE.MeshStandardMaterial({ color: 0xdc2626 });
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.2 });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.5), suitMat);
+            body.position.y = 1.2;
+            body.castShadow = true;
+            player.add(body);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), suitMat);
+            head.position.y = 2.1;
+            head.castShadow = true;
+            player.add(head);
+
+            const face = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.2), skinMat);
+            face.position.set(0, 2.15, 0.31);
+            player.add(face);
+
+            const headband = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.1, 0.65), redMat);
+            headband.position.y = 2.3;
+            player.add(headband);
+
+            const belt = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.15, 0.55), redMat);
+            belt.position.y = 0.85;
+            player.add(belt);
+
+            const swordSheath = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.4, 0.1), suitMat);
+            swordSheath.rotation.z = -0.5;
+            swordSheath.position.set(-0.2, 1.4, -0.35);
+            
+            const swordHilt = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.4), metalMat);
+            swordHilt.rotation.z = -0.5;
+            swordHilt.position.set(-0.55, 1.9, -0.35);
+
+            player.add(swordSheath, swordHilt);
+
+            const limbGeo = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+            const leftArm = new THREE.Mesh(limbGeo, suitMat); leftArm.position.set(-0.65, 1.2, 0);
+            const rightArm = new THREE.Mesh(limbGeo, suitMat); rightArm.position.set(0.65, 1.2, 0);
+            const leftLeg = new THREE.Mesh(limbGeo, suitMat); leftLeg.position.set(-0.25, 0.4, 0);
+            const rightLeg = new THREE.Mesh(limbGeo, suitMat); rightLeg.position.set(0.25, 0.4, 0);
+
+            player.add(leftArm, rightArm, leftLeg, rightLeg);
+
+            player.position.set(0, getTerrainHeight(0, 0), 0);
+            scene.add(player);
+        }
+
+        function createCollectibles3D() {
+            quizCollectiblesData.forEach((item, index) => {
+                const angle = (index / quizCollectiblesData.length) * Math.PI * 2;
+                const distance = 25 + (index % 3) * 20 + Math.random() * 10;
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                const y = getTerrainHeight(x, z) + 1.8;
+
+                const group = new THREE.Group();
+                group.position.set(x, y, z);
+
+                const baseGeo = new THREE.CylinderGeometry(1.2, 1.5, 0.4, 8);
+                const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+                const base = new THREE.Mesh(baseGeo, baseMat);
+                base.position.y = -0.8;
+                group.add(base);
+
+                let meshGeo;
+                if (item.geo === 'star') meshGeo = new THREE.OctahedronGeometry(0.9, 0);
+                else if (item.geo === 'torus') meshGeo = new THREE.TorusGeometry(0.6, 0.2, 8, 16);
+                else if (item.geo === 'tree') meshGeo = new THREE.ConeGeometry(0.8, 1.6, 5);
+                else if (item.geo === 'bull') meshGeo = new THREE.BoxGeometry(1, 1, 1);
+                else meshGeo = new THREE.IcosahedronGeometry(0.8, 0);
+
+                const meshMat = new THREE.MeshStandardMaterial({
+                    color: item.color,
+                    emissive: item.color,
+                    emissiveIntensity: 0.6,
+                    roughness: 0.2,
+                    metalness: 0.8
+                });
+
+                const mesh = new THREE.Mesh(meshGeo, meshMat);
+                mesh.castShadow = true;
+                group.add(mesh);
+
+                const light = new THREE.PointLight(item.color, 1.5, 10);
+                group.add(light);
+
+                scene.add(group);
+
+                collectibles.push({
+                    data: item,
+                    group: group,
+                    mesh: mesh,
+                    solved: false
+                });
+            });
+        }
+
+        function setupControls() {
+            window.addEventListener('keydown', (e) => {
+                if (isQuizActive) return;
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = true;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = true;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = true;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = true;
+                if (e.key === ' ' || e.code === 'Space') {
+                    if (!keys.space && isGrounded) {
+                        playerVelocityY = jumpStrength;
+                        isGrounded = false;
+                        playSound('jump');
+                    }
+                    keys.space = true;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = false;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = false;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = false;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = false;
+                if (e.key === ' ' || e.code === 'Space') keys.space = false;
+            });
+
+            const bindBtn = (id, key) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); if (!isQuizActive) keys[key] = true; });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+                btn.addEventListener('mousedown', () => { if (!isQuizActive) keys[key] = true; });
+                btn.addEventListener('mouseup', () => { keys[key] = false; });
+            };
+
+            bindBtn('btn-up', 'w');
+            bindBtn('btn-down', 's');
+            bindBtn('btn-left', 'a');
+            bindBtn('btn-right', 'd');
+
+            const jumpBtn = document.getElementById('btn-jump');
+            if (jumpBtn) {
+                const handleJump = (e) => {
+                    e.preventDefault();
+                    if (isGrounded && !isQuizActive) {
+                        playerVelocityY = jumpStrength;
+                        isGrounded = false;
+                        playSound('jump');
+                    }
+                };
+                jumpBtn.addEventListener('touchstart', handleJump);
+                jumpBtn.addEventListener('click', handleJump);
+            }
+
+            document.getElementById('start-btn').addEventListener('click', () => {
+                document.getElementById('start-modal').classList.add('hidden');
+                gameStarted = true;
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            });
+
+            document.getElementById('close-quiz-btn').addEventListener('click', () => {
+                document.getElementById('quiz-modal').classList.add('hidden');
+                isQuizActive = false;
+                
+                // If the active quiz was answered correctly, remove the 3D item
+                if (activeQuizObj && activeQuizObj.solved) {
+                    scene.remove(activeQuizObj.group);
+                }
+                activeQuizObj = null;
+
+                // Victory Check
+                if (collectedCount >= quizCollectiblesData.length) {
+                    document.getElementById('final-score').innerText = `${totalScore} PTS`;
+                    playSound('victory');
+                    setTimeout(() => {
+                        document.getElementById('victory-modal').classList.remove('hidden');
+                    }, 500);
+                }
+            });
+
+            document.getElementById('restart-btn').addEventListener('click', () => {
+                location.reload();
+            });
+        }
+
+        let lightningTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (gameStarted && !isQuizActive) {
+                updatePlayer();
+                updateBirds();
+                updateCollectibles();
+                updateEnvironmentEffects();
+                updateRadarHint();
+            }
+
+            updateCamera();
+            renderer.render(scene, camera);
+        }
+
+        function updatePlayer() {
+            if (keys.a) player.rotation.y += turnSpeed;
+            if (keys.d) player.rotation.y -= turnSpeed;
+
+            let moveDir = 0;
+            if (keys.w) moveDir = 1;
+            if (keys.s) moveDir = -0.6;
+
+            if (moveDir !== 0) {
+                player.position.x += Math.sin(player.rotation.y) * moveSpeed * moveDir;
+                player.position.z += Math.cos(player.rotation.y) * moveSpeed * moveDir;
+            }
+
+            player.position.y += playerVelocityY;
+            const currentTerrainH = getTerrainHeight(player.position.x, player.position.z);
+
+            if (player.position.y <= currentTerrainH) {
+                player.position.y = currentTerrainH;
+                playerVelocityY = 0;
+                isGrounded = true;
+            } else {
+                playerVelocityY += gravity;
+            }
+        }
+
+        function updateBirds() {
+            birds.forEach((b) => {
+                b.angle += b.speed * 0.05;
+                b.mesh.position.x = Math.cos(b.angle) * b.radius;
+                b.mesh.position.z = Math.sin(b.angle) * b.radius;
+                b.mesh.rotation.y = -b.angle;
+                
+                const flap = Math.sin(Date.now() * 0.01) * 0.3;
+                b.leftWing.rotation.z = 0.2 + flap;
+                b.rightWing.rotation.z = -0.2 - flap;
+            });
+        }
+
+        function updateCollectibles() {
+            const time = Date.now() * 0.003;
+
+            collectibles.forEach((c) => {
+                if (c.solved) return;
+
+                c.mesh.rotation.y += 0.02;
+                c.mesh.rotation.x += 0.01;
+                c.group.position.y = getTerrainHeight(c.group.position.x, c.group.position.z) + 1.8 + Math.sin(time + c.data.id) * 0.3;
+
+                const dist = player.position.distanceTo(c.group.position);
+                if (dist < 2.5) {
+                    triggerQuizModal(c);
+                }
+            });
+        }
+
+        // Trigger Quiz Modal when touching collectible
+        function triggerQuizModal(itemObj) {
+            isQuizActive = true;
+            activeQuizObj = itemObj;
+
+            // Stop movement
+            keys.w = keys.a = keys.s = keys.d = keys.space = false;
+
+            const qData = itemObj.data;
+
+            document.getElementById('quiz-icon').innerText = qData.icon;
+            document.getElementById('quiz-category').innerText = `${qData.category} • Kuis 3D`;
+            document.getElementById('quiz-title').innerText = qData.name;
+            document.getElementById('quiz-question').innerText = qData.question;
+
+            const optionsContainer = document.getElementById('quiz-options');
+            optionsContainer.innerHTML = '';
+
+            const feedbackEl = document.getElementById('quiz-feedback');
+            feedbackEl.classList.add('hidden');
+            document.getElementById('close-quiz-btn').classList.add('hidden');
+
+            // Render 4 Shuffle Options or direct options
+            qData.options.forEach((optText, optIdx) => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left p-3.5 rounded-xl bg-gray-950 hover:bg-gray-800 border border-gray-800 text-xs md:text-sm font-medium transition-all duration-200 flex items-center gap-3';
+                
+                const optionLabel = String.fromCharCode(65 + optIdx); // A, B, C, D
+                btn.innerHTML = `
+                    <span class="w-6 h-6 rounded-lg bg-gray-800 flex items-center justify-center font-bold text-yellow-400 text-xs border border-gray-700">${optionLabel}</span>
+                    <span>${optText}</span>
+                `;
+
+                btn.onclick = () => handleAnswerClick(optIdx, qData.correctIndex, btn, qData.desc);
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('quiz-modal').classList.remove('hidden');
+        }
+
+        function handleAnswerClick(selectedIdx, correctIdx, btnEl, explanation) {
+            const feedbackEl = document.getElementById('quiz-feedback');
+            const allBtns = document.querySelectorAll('#quiz-options button');
+
+            if (selectedIdx === correctIdx) {
+                // Correct Answer
+                playSound('correct');
+                btnEl.className = 'w-full text-left p-3.5 rounded-xl bg-green-900/60 border-2 border-green-500 text-xs md:text-sm font-bold text-white flex items-center gap-3';
+                
+                // Disable all options
+                allBtns.forEach(b => b.onclick = null);
+
+                // Add score if not previously solved
+                if (!activeQuizObj.solved) {
+                    activeQuizObj.solved = true;
+                    collectedCount++;
+                    totalScore += 5;
+
+                    document.getElementById('score-text').innerText = `${collectedCount} / ${quizCollectiblesData.length}`;
+                    document.getElementById('progress-bar').style.width = `${(collectedCount / quizCollectiblesData.length) * 100}%`;
+                    document.getElementById('total-score').innerText = `${totalScore} PTS`;
+                }
+
+                feedbackEl.className = 'p-3.5 rounded-xl text-xs font-semibold bg-green-950/80 border border-green-500/50 text-green-300 block mb-4';
+                feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check text-green-400 mr-1"></i> <strong>BENAR! (+5 PTS)</strong><br><span class="text-gray-300 font-normal mt-1 block">${explanation}</span>`;
+
+                document.getElementById('close-quiz-btn').classList.remove('hidden');
+            } else {
+                // Wrong Answer
+                playSound('wrong');
+                btnEl.className = 'w-full text-left p-3.5 rounded-xl bg-red-900/50 border border-red-500 text-xs md:text-sm font-medium text-red-200 flex items-center gap-3';
+                
+                feedbackEl.className = 'p-3.5 rounded-xl text-xs font-semibold bg-red-950/80 border border-red-500/50 text-red-300 block mb-4';
+                feedbackEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-400 mr-1"></i> <strong>JAWABAN KURANG TEPAT</strong><br><span class="text-gray-300 font-normal mt-1 block">Ayo pikirkan kembali atau pilih opsi jawaban lain!</span>`;
+            }
+        }
+
+        function updateEnvironmentEffects() {
+            lightningTimer++;
+            if (lightningTimer > 300 + Math.random() * 200) {
+                lightningTimer = 0;
+                lightningLight.intensity = 6;
+                scene.background = new THREE.Color(0x38bdf8);
+                playSound('thunder');
+
+                setTimeout(() => {
+                    lightningLight.intensity = 0;
+                    scene.background = new THREE.Color(0x1e293b);
+                }, 120);
+            }
+        }
+
+        function updateRadarHint() {
+            let nearestDist = Infinity;
+            let nearestItem = null;
+
+            collectibles.forEach((c) => {
+                if (!c.solved) {
+                    const d = player.position.distanceTo(c.group.position);
+                    if (d < nearestDist) {
+                        nearestDist = d;
+                        nearestItem = c.data;
+                    }
+                }
+            });
+
+            const hintEl = document.getElementById('radar-text');
+            if (nearestItem) {
+                hintEl.innerText = `Artefak Kuis terdekat: ${nearestItem.name} (${Math.round(nearestDist)}m)`;
+            } else {
+                hintEl.innerText = 'Semua 20 Pertanyaan Kuis Kebangsaan Telah Selesai!';
+            }
+        }
+
+        function updateCamera() {
+            if (!player) return;
+
+            const offset = new THREE.Vector3(
+                -Math.sin(player.rotation.y) * 12,
+                6,
+                -Math.cos(player.rotation.y) * 12
+            );
+
+            const targetCamPos = player.position.clone().add(offset);
+            camera.position.lerp(targetCamPos, 0.08);
+            camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 2, 0)));
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.onload = function() {
+            initScene();
+            setupControls();
+            animate();
+        };
+    </script>
+</body>
+</html>
+```
